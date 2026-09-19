@@ -168,7 +168,7 @@ export async function startScreenSharing() {
       stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: 60, max: 60 } },
         audio: {
-          echoCancellation: false,
+          echoCancellation: true,
           noiseSuppression: false,
           autoGainControl: false,
           suppressLocalAudioPlayback: true

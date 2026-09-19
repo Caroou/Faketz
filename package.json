@@ -1,6 +1,6 @@
 {
   "name": "faketz",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Uma aplicação WebRTC estilo Discord para chamadas de voz e tela P2P",
   "main": "desktop/main.js",
   "scripts": {

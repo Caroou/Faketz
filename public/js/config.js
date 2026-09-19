@@ -45,7 +45,7 @@ export const getScreenConstraints = (qualityId = '1080p60') => {
       frameRate: { ideal: profile.frameRate, max: profile.frameRate }
     },
     audio: {
-      echoCancellation: false, // Turned off to prevent game/media audio from ducking or getting muffled when someone speaks
+      echoCancellation: true,
       noiseSuppression: false,
       autoGainControl: false,
       suppressLocalAudioPlayback: true
