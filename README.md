@@ -16,7 +16,7 @@ Um clone simplificado e levíssimo focado no que importa: transmissão de tela f
 ## 📥 Instalação
 
 ### Usando o Aplicativo Desktop (Recomendado para 60 FPS)
-Baixe a versão mais recente em [Releases](https://github.com/Caroou/Faketz/releases/download/setup/Faketz.Setup.1.0.0.exe) e instale no Windows.
+Baixe a versão mais recente em [Releases](https://github.com/Caroou/Faketz/releases/download/setup/Faketz.Setup.1.0.2.exe) e instale no Windows.
 
 ### Rodando o Servidor (Desenvolvimento)
 1. Instale as dependências: `npm install`
