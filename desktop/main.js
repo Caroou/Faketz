@@ -201,9 +201,7 @@ app.whenReady().then(async () => {
     await startEmbeddedServer();
   }
 
-  // Handle display media requests (screen / window capture)
-  // Comentado para permitir que o Electron use o seletor nativo do Chromium (que possui suporte à exclusão de áudio do próprio app).
-  /*
+  // Handle display media requests (screen / window capture) for all windows safely
   session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
     pendingMediaCallback = callback;
     try {
@@ -220,7 +218,6 @@ app.whenReady().then(async () => {
       pendingMediaCallback = null;
     }
   });
-  */
 
   createWindow();
 
