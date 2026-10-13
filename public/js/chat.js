@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { encryptMessage, decryptMessage } from './crypto.js';
+import { showToast } from './ui/toast.js';
 
 const activeTypingUsers = new Map(); // userId -> username
 let typingTimeout = null;
@@ -27,9 +28,21 @@ function formatMessageWithLinks(rawText) {
   });
 }
 
-// Compress image on client via canvas before staging/sending
-function compressImage(file, maxWidth = 1280, maxHeight = 1280, quality = 0.8) {
+// Compress image on client via canvas before staging/sending (preserves GIFs as animated DataURLs)
+function processMediaFile(file, maxWidth = 1280, maxHeight = 1280, quality = 0.8) {
   return new Promise((resolve, reject) => {
+    // If it's a GIF, keep the animated frames intact instead of flattening to static JPEG
+    if (file.type === 'image/gif') {
+      if (file.size > 8 * 1024 * 1024) {
+        return reject(new Error('O GIF selecionado é muito grande (máximo 8MB).'));
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -264,10 +277,11 @@ export function initChat() {
         const file = item.getAsFile();
         if (file) {
           try {
-            const dataUrl = await compressImage(file);
+            const dataUrl = await processMediaFile(file);
             setStagedImage(dataUrl);
           } catch (err) {
-            console.error('Erro ao processar imagem colada:', err);
+            console.error('Erro ao processar imagem/gif colado:', err);
+            showToast(err.message || 'Erro ao carregar mídia.', 'error');
           }
         }
         break;
@@ -285,10 +299,11 @@ export function initChat() {
       const file = chatImageInput.files?.[0];
       if (file) {
         try {
-          const dataUrl = await compressImage(file);
+          const dataUrl = await processMediaFile(file);
           setStagedImage(dataUrl);
         } catch (err) {
-          console.error('Erro ao processar anexo de imagem:', err);
+          console.error('Erro ao processar anexo de imagem/gif:', err);
+          showToast(err.message || 'Erro ao carregar mídia.', 'error');
         } finally {
           chatImageInput.value = '';
         }

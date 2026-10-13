@@ -22,7 +22,7 @@ async function proceedToRoom() {
     loginSection.classList.add('hidden-section');
     appSection.classList.remove('hidden-section');
 
-    roomNameDisplay.innerText = `# ${state.roomId}`;
+    roomNameDisplay.innerText = state.roomId;
 
     // Suppress double toast if spectator toast was already triggered
     if (!isSpectator) {
