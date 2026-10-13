@@ -60,6 +60,11 @@ function registerRoomHandlers(io, socket) {
   // Disconnect handler
   socket.on('disconnect', () => {
     if (socket.roomId) {
+      socket.to(socket.roomId).emit('typing-status', {
+        userId: socket.id,
+        username: socket.username,
+        isTyping: false
+      });
       socket.to(socket.roomId).emit('user-disconnected', socket.id);
       RoomManager.removeUser(socket.id);
       RoomManager.cleanupRoomIfEmpty(io, socket.roomId);

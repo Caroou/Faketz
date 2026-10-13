@@ -6,7 +6,9 @@ const config = require('./src/config');
 const initSocketServer = require('./src/socket');
 
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  maxHttpBufferSize: 1e7 // 10MB for encrypted image payloads
+});
 
 // Initialize modular socket events
 initSocketServer(io);

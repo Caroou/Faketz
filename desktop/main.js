@@ -47,7 +47,9 @@ let pendingMediaCallback = null;
 function startEmbeddedServer() {
   return new Promise((resolve) => {
     embeddedServer = http.createServer(expressApp);
-    const io = new Server(embeddedServer);
+    const io = new Server(embeddedServer, {
+      maxHttpBufferSize: 1e7 // 10MB for encrypted image payloads
+    });
     initSocketServer(io);
 
     embeddedServer.on('error', (err) => {

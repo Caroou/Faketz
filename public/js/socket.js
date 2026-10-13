@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { addMessage, onChatMessage } from './chat.js';
+import { addMessage, onChatMessage, onTypingStatus } from './chat.js';
 import { createPeerConnection, handleSignal } from './webrtc/peer.js';
 import { removeVideo } from './ui/mediaRenderer.js';
 import { showToast } from './ui/toast.js';
@@ -83,6 +83,7 @@ export function initSocketClient() {
   });
 
   socket.on('chat-message', onChatMessage);
+  socket.on('typing-status', onTypingStatus);
 
   socket.on('user-muted', (userId, isMuted) => {
     const allMuteInds = [

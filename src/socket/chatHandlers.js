@@ -8,6 +8,16 @@ function registerChatHandlers(io, socket) {
       });
     }
   });
+
+  socket.on('typing-status', (isTyping) => {
+    if (socket.roomId) {
+      socket.to(socket.roomId).emit('typing-status', {
+        userId: socket.id,
+        username: socket.username,
+        isTyping: Boolean(isTyping)
+      });
+    }
+  });
 }
 
 module.exports = registerChatHandlers;
