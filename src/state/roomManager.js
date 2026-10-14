@@ -53,11 +53,12 @@ const RoomManager = {
     return user;
   },
 
-  isUsernameTaken(roomId, username) {
+  isUsernameTaken(roomId, username, excludeSocketId = null) {
     if (!username) return false;
     const lowerUsername = username.toLowerCase();
-    return Object.values(users).some(
-      (u) => u.roomId === roomId && u.username.toLowerCase() === lowerUsername
+    return Object.entries(users).some(
+      ([socketId, u]) => socketId !== excludeSocketId &&
+        u.roomId === roomId && u.username.toLowerCase() === lowerUsername
     );
   },
 

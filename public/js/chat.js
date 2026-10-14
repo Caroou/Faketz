@@ -33,8 +33,8 @@ function processMediaFile(file, maxWidth = 1280, maxHeight = 1280, quality = 0.8
   return new Promise((resolve, reject) => {
     // If it's a GIF, keep the animated frames intact instead of flattening to static JPEG
     if (file.type === 'image/gif') {
-      if (file.size > 8 * 1024 * 1024) {
-        return reject(new Error('O GIF selecionado é muito grande (máximo 8MB).'));
+      if (file.size > 5 * 1024 * 1024) {
+        return reject(new Error('O GIF selecionado é muito grande (máximo 5MB).'));
       }
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target.result);
@@ -96,34 +96,66 @@ export function closeImageLightbox() {
   if (img) img.src = '';
 }
 
-export function addMessage(user, content, type = 'text') {
+export function addMessage(user, content, type = 'text', avatar = null) {
   const chatMessages = document.getElementById('chat-messages');
   if (!chatMessages) return;
 
   const div = document.createElement('div');
-  div.className = 'bg-faketz-tertiary p-3 rounded-xl text-sm break-words border border-white/5 shadow-sm';
+  div.className = 'bg-faketz-tertiary p-3 rounded-xl text-sm break-words border border-white/5 shadow-sm flex items-start gap-3';
 
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  let bodyHtml = '';
-  if (type === 'image') {
-    bodyHtml = `
-      <div class="mt-1 relative group">
-        <img src="${content}" alt="Imagem compartilhada" class="chat-clickable-image rounded-lg max-h-60 max-w-full object-contain cursor-pointer border border-white/10 hover:opacity-95 transition-opacity">
-        <span class="text-[10px] text-zinc-500 mt-1 block">Clique para ampliar</span>
-      </div>
-    `;
+  // Build participant-provided avatar as a DOM node; never interpolate it into HTML.
+  let avatarEl;
+  if (avatar) {
+    avatarEl = document.createElement('img');
+    avatarEl.src = /^data:image\/(?:jpeg|png|gif|webp);base64,[a-z0-9+/]+=*$/i.test(avatar) ? avatar : '';
+    avatarEl.alt = user || '';
+    avatarEl.className = 'w-8 h-8 rounded-full object-cover shrink-0 border border-white/10 mt-0.5';
   } else {
-    bodyHtml = `<p class="text-zinc-300 leading-relaxed">${formatMessageWithLinks(content)}</p>`;
+    const initial = (user || '?').charAt(0).toUpperCase();
+    const isSystem = user === 'Sistema';
+    const bgClass = isSystem ? 'bg-zinc-700 text-zinc-300' : 'bg-gradient-to-br from-faketz-accent to-faketz-accentHover text-white';
+    avatarEl = document.createElement('div');
+    avatarEl.className = `w-8 h-8 rounded-full ${bgClass} font-bold text-xs flex items-center justify-center shrink-0 border border-white/10 mt-0.5`;
+    avatarEl.textContent = initial;
   }
 
-  div.innerHTML = `
-    <div class="flex items-baseline gap-2 mb-1">
-      <strong class="text-white font-semibold">${escapeHtml(user)}</strong>
-      <span class="text-[10.5px] text-zinc-500 font-medium">${time}</span>
-    </div>
-    ${bodyHtml}
-  `;
+  const contentEl = document.createElement('div');
+  contentEl.className = 'flex-1 min-w-0';
+  const headerEl = document.createElement('div');
+  headerEl.className = 'flex items-baseline gap-2 mb-1';
+  const usernameEl = document.createElement('strong');
+  usernameEl.className = 'text-white font-semibold';
+  usernameEl.textContent = user || '';
+  const timeEl = document.createElement('span');
+  timeEl.className = 'text-[10.5px] text-zinc-500 font-medium';
+  timeEl.textContent = time;
+  headerEl.append(usernameEl, timeEl);
+  contentEl.appendChild(headerEl);
+
+  if (type === 'image') {
+    const imageUrl = /^data:image\/(?:jpeg|png|gif|webp);base64,[a-z0-9+/]+=*$/i.test(content) ? content : '';
+    const imageWrapper = document.createElement('div');
+    imageWrapper.className = 'mt-1 relative group';
+    const imageEl = document.createElement('img');
+    imageEl.src = imageUrl;
+    imageEl.alt = 'Imagem compartilhada';
+    imageEl.className = 'chat-clickable-image rounded-lg max-h-60 max-w-full object-contain cursor-pointer border border-white/10 hover:opacity-95 transition-opacity';
+    imageWrapper.appendChild(imageEl);
+    const hintEl = document.createElement('span');
+    hintEl.className = 'text-[10px] text-zinc-500 mt-1 block';
+    hintEl.textContent = 'Clique para ampliar';
+    imageWrapper.appendChild(hintEl);
+    contentEl.appendChild(imageWrapper);
+  } else {
+    const messageEl = document.createElement('p');
+    messageEl.className = 'text-zinc-300 leading-relaxed';
+    messageEl.innerHTML = formatMessageWithLinks(String(content || ''));
+    contentEl.appendChild(messageEl);
+  }
+
+  div.append(avatarEl, contentEl);
 
   if (type === 'image') {
     const imgEl = div.querySelector('.chat-clickable-image');
@@ -144,13 +176,13 @@ export async function onChatMessage(data) {
   try {
     const parsed = JSON.parse(decrypted);
     if (parsed && parsed.type === 'image') {
-      addMessage(data.username, parsed.data, 'image');
+      addMessage(data.username, parsed.data, 'image', data.avatar);
       return;
     }
   } catch (_) {
     // Regular plain text
   }
-  addMessage(data.username, decrypted, 'text');
+  addMessage(data.username, decrypted, 'text', data.avatar);
 }
 
 export function onTypingStatus(data) {
@@ -322,7 +354,7 @@ export function initChat() {
 
     // If an image is staged, send it first
     if (imageToSend) {
-      addMessage('Você', imageToSend, 'image');
+      addMessage('Você', imageToSend, 'image', state.avatar);
 
       const payload = JSON.stringify({ type: 'image', data: imageToSend });
       const encrypted = await encryptMessage(payload, state.chatCryptoKey);
@@ -336,7 +368,7 @@ export function initChat() {
 
     // If text message accompanied, send it
     if (msg) {
-      addMessage('Você', msg, 'text');
+      addMessage('Você', msg, 'text', state.avatar);
 
       const encryptedMsg = await encryptMessage(msg, state.chatCryptoKey);
       if (state.socket) {

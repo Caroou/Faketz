@@ -12,5 +12,7 @@ export const state = {
   chatCryptoKey: null,
   isConnecting: false,
   selectedQuality: '1080p60',
-  peers: {} // userId -> { pc, isPolite, makingOffer, ignoreOffer, username, isMuted, analyser }
+  avatar: null, // base64 string or null
+  roomPin: '',
+  peers: {} // userId -> { pc, isPolite, makingOffer, ignoreOffer, username, avatar, isMuted, analyser }
 };

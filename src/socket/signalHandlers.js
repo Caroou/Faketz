@@ -14,11 +14,16 @@ function registerSignalHandlers(io, socket) {
     if (!data || !data.to) return;
 
     const user = RoomManager.getUser(socket.id);
+    const recipient = RoomManager.getUser(data.to);
+    if (!user || !recipient || !user.roomId || user.roomId !== recipient.roomId ||
+        socket.roomId !== user.roomId) return;
+
     io.to(data.to).emit('signal', {
       from: socket.id,
       signal: data.signal,
-      username: user ? user.username : 'Desconhecido',
-      isMuted: user ? user.isMuted : false
+      username: user.username,
+      avatar: user.avatar || null,
+      isMuted: user.isMuted
     });
   });
 }

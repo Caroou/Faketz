@@ -4,7 +4,8 @@ function registerChatHandlers(io, socket) {
       socket.to(socket.roomId).emit('chat-message', {
         message,
         username: socket.username,
-        userId: socket.id
+        userId: socket.id,
+        avatar: socket.avatar || null
       });
     }
   });

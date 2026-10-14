@@ -90,7 +90,7 @@ export function applyBitrateToSdp(sdp, profile) {
   return result;
 }
 
-export function createPeerConnection(userId, peerUsername, isMuted = false) {
+export function createPeerConnection(userId, peerUsername, isMuted = false, peerAvatar = null) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
   const isPolite = state.socket.id > userId;
 
@@ -106,7 +106,7 @@ export function createPeerConnection(userId, peerUsername, isMuted = false) {
   state.peers[userId] = peerObj;
 
   // Immediately render avatar tile so spectators and voice users appear in grid
-  addRemoteMedia(userId, null, peerUsername, isMuted);
+  addRemoteMedia(userId, null, peerUsername, isMuted, peerAvatar);
 
   pc.onnegotiationneeded = async () => {
     try {
@@ -210,10 +210,10 @@ export function createPeerConnection(userId, peerUsername, isMuted = false) {
   return peerObj;
 }
 
-export async function handleSignal({ from, signal, username: signalUsername, isMuted: signalIsMuted }) {
+export async function handleSignal({ from, signal, username: signalUsername, avatar: signalAvatar, isMuted: signalIsMuted }) {
   let peerObj = state.peers[from];
   if (!peerObj) {
-    peerObj = createPeerConnection(from, signalUsername, signalIsMuted);
+    peerObj = createPeerConnection(from, signalUsername, signalIsMuted, signalAvatar);
   }
 
   const { pc, isPolite } = peerObj;

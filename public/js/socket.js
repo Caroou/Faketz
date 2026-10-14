@@ -39,13 +39,15 @@ export function initSocketClient() {
       state.peers = {};
 
       // Re-join room with same identity and room credentials
-      socket.emit('join-room', state.roomId, state.username);
-      if (state.isMicMuted) {
-        socket.emit('mute-status', true);
-      }
-
-      showToast('Reconectado à sala com sucesso!', 'success');
-      addMessage('Sistema', 'Você foi reconectado à sala automaticamente.');
+      socket.emit('join-room', state.roomId, state.username, state.avatar, state.roomPin, (result) => {
+        if (!result?.success) {
+          showToast(result?.message || 'Não foi possível reconectar à sala.', 'error');
+          return;
+        }
+        if (state.isMicMuted) socket.emit('mute-status', true);
+        showToast('Reconectado à sala com sucesso!', 'success');
+        addMessage('Sistema', 'Você foi reconectado à sala automaticamente.');
+      });
     }
   });
 
@@ -67,9 +69,9 @@ export function initSocketClient() {
     }
   });
 
-  socket.on('user-connected', (userId, newUsername) => {
+  socket.on('user-connected', (userId, newUsername, avatar) => {
     addMessage('Sistema', `${newUsername} entrou na sala.`);
-    createPeerConnection(userId, newUsername);
+    createPeerConnection(userId, newUsername, false, avatar);
   });
 
   socket.on('user-disconnected', (userId) => {

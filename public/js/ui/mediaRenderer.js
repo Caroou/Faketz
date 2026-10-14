@@ -1,6 +1,6 @@
 // Media Rendering Logic (Video Grid tiles, Avatar bubbles, Volume controls, Theatre mode)
 
-export function addRemoteMedia(mediaId, stream, peerUsername, isMutedInitially = false) {
+export function addRemoteMedia(mediaId, stream, peerUsername, isMutedInitially = false, avatar = null) {
   const videoGrid = document.getElementById('video-grid');
   if (!videoGrid) return;
 
@@ -67,8 +67,17 @@ export function addRemoteMedia(mediaId, stream, peerUsername, isMutedInitially =
     labelEl.innerText = hasVideo ? `${peerUsername} (Tela)` : peerUsername;
 
     const avatarEl = document.createElement('div');
-    avatarEl.className = 'absolute inset-0 m-auto w-24 h-24 rounded-full bg-gradient-to-br from-faketz-accent to-faketz-accentHover text-white text-3xl font-bold flex items-center justify-center z-0 shadow-2xl pointer-events-none border-4 border-faketz-main/50';
-    avatarEl.innerText = (peerUsername || '?').charAt(0).toUpperCase();
+    avatarEl.className = 'media-avatar-bubble absolute inset-0 m-auto w-24 h-24 rounded-full bg-gradient-to-br from-faketz-accent to-faketz-accentHover text-white text-3xl font-bold flex items-center justify-center z-0 shadow-2xl pointer-events-none border-4 border-faketz-main/50 overflow-hidden';
+
+    if (avatar) {
+      const avatarImage = document.createElement('img');
+      avatarImage.src = /^data:image\/jpeg;base64,[a-z0-9+/]+=*$/i.test(avatar) ? avatar : '';
+      avatarImage.alt = peerUsername || '';
+      avatarImage.className = 'w-full h-full object-cover';
+      avatarEl.appendChild(avatarImage);
+    } else {
+      avatarEl.innerText = (peerUsername || '?').charAt(0).toUpperCase();
+    }
     avatarEl.style.display = hasVideo ? 'none' : 'flex';
 
     // Mute indicator for voice/spectator tiles
