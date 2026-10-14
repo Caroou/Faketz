@@ -222,8 +222,6 @@ export async function startScreenSharing() {
         try {
           const sender = pc.addTrack(screenVideoTrack, state.screenStream);
 
-          await applyScreenSenderProfile(sender, profile);
-
           // Prioritize modern multi-core GPU gaming codecs (VP9, AV1, VP8)
           try {
             const transceivers = pc.getTransceivers();

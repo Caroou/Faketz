@@ -30,9 +30,38 @@ export function configureFastCodecs(videoTransceiver) {
   }
 }
 
-export function applySdpCodecPreferences(sdp) {
+export function applySdpCodecPreferences(sdp, profile = null) {
   if (!sdp) return sdp;
   let result = sdp;
+
+  // Give Chromium a moderate starting point without forcing a minimum bitrate.
+  if (profile?.startBitrateKbps) {
+    const lineEnding = result.includes('\r\n') ? '\r\n' : '\n';
+    result = result.split(/(?=m=)/).map((section) => {
+      if (!section.startsWith('m=video')) return section;
+      const lines = section.split(/\r?\n/);
+      const mediaLine = lines.find((line) => line.startsWith('m=video')) || '';
+      const payloadTypes = mediaLine.trim().split(/\s+/).slice(3);
+
+      for (const payloadType of payloadTypes) {
+        const rtpMapIndex = lines.findIndex((line) => line.startsWith(`a=rtpmap:${payloadType} `));
+        if (rtpMapIndex < 0 || /(?:^|\s)(?:rtx|red|ulpfec|flexfec)(?:\/|\s|$)/i.test(lines[rtpMapIndex])) continue;
+
+        const fmtpIndex = lines.findIndex((line) => line.startsWith(`a=fmtp:${payloadType} `));
+        if (fmtpIndex >= 0) {
+          if (/x-google-start-bitrate=\d+/i.test(lines[fmtpIndex])) {
+            lines[fmtpIndex] = lines[fmtpIndex].replace(/x-google-start-bitrate=\d+/i, `x-google-start-bitrate=${profile.startBitrateKbps}`);
+          } else {
+            lines[fmtpIndex] += `;x-google-start-bitrate=${profile.startBitrateKbps}`;
+          }
+        } else {
+          lines.splice(rtpMapIndex + 1, 0, `a=fmtp:${payloadType} x-google-start-bitrate=${profile.startBitrateKbps}`);
+        }
+      }
+
+      return lines.join(lineEnding);
+    }).join('');
+  }
 
   const opusRegex = /a=rtpmap:(\d+) opus\/48000\/2/i;
   const opusMatch = result.match(opusRegex);
@@ -71,6 +100,15 @@ export async function applyScreenSenderProfile(sender, profile) {
   }
 }
 
+async function applyPeerScreenProfile(pc) {
+  if (!state.screenStream) return null;
+  const profile = getProfile(state.selectedQuality);
+  const screenTrack = state.screenStream.getVideoTracks()[0];
+  const sender = screenTrack && pc.getSenders().find((item) => item.track === screenTrack);
+  if (sender) await applyScreenSenderProfile(sender, profile);
+  return profile;
+}
+
 export function createPeerConnection(userId, peerUsername, isMuted = false, peerAvatar = null) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
   const isPolite = state.socket.id > userId;
@@ -92,10 +130,11 @@ export function createPeerConnection(userId, peerUsername, isMuted = false, peer
   pc.onnegotiationneeded = async () => {
     try {
       peerObj.makingOffer = true;
+      const profile = await applyPeerScreenProfile(pc);
       let offer = await pc.createOffer();
 
       // Video bitrate and resolution are controlled through RTCRtpSender parameters.
-      offer.sdp = applySdpCodecPreferences(offer.sdp);
+      offer.sdp = applySdpCodecPreferences(offer.sdp, profile);
 
       await pc.setLocalDescription(offer);
       state.socket.emit('signal', { to: userId, signal: pc.localDescription });
@@ -155,13 +194,6 @@ export function createPeerConnection(userId, peerUsername, isMuted = false, peer
     state.screenStream.getTracks().forEach((track) => {
       const sender = pc.addTrack(track, state.screenStream);
       if (track.kind === 'video') {
-        try {
-          const profile = getProfile(state.selectedQuality);
-          applyScreenSenderProfile(sender, profile);
-        } catch (e) {
-          console.warn('Falha ao configurar bitrate para novo participante', e);
-        }
-
         // Prioritize modern multi-core GPU gaming codecs (VP9, AV1, VP8)
         try {
           const transceivers = pc.getTransceivers();
@@ -197,8 +229,9 @@ export async function handleSignal({ from, signal, username: signalUsername, ava
       await pc.setRemoteDescription(new RTCSessionDescription(signal));
 
       if (signal.type === 'offer') {
+        const profile = await applyPeerScreenProfile(pc);
         let answer = await pc.createAnswer();
-        answer.sdp = applySdpCodecPreferences(answer.sdp);
+        answer.sdp = applySdpCodecPreferences(answer.sdp, profile);
         
         await pc.setLocalDescription(answer);
         state.socket.emit('signal', { to: from, signal: pc.localDescription });
