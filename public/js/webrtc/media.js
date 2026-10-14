@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { getProfile, getScreenConstraints } from '../config.js';
 import { showToast } from '../ui/toast.js';
 import { addRemoteMedia } from '../ui/mediaRenderer.js';
-import { configureFastCodecs } from './peer.js';
+import { applyScreenSenderProfile, configureFastCodecs } from './peer.js';
 
 export async function initMedia() {
   const globalMutedCheckbox = document.getElementById('global-muted-checkbox');
@@ -150,6 +150,27 @@ export async function toggleScreenShare() {
   }
 }
 
+export async function applyScreenQuality(profile = getProfile(state.selectedQuality)) {
+  const screenTrack = state.screenStream?.getVideoTracks()[0];
+  if (!screenTrack) return;
+
+  screenTrack.contentHint = 'motion';
+  try {
+    await screenTrack.applyConstraints({
+      width: { ideal: profile.width },
+      height: { ideal: profile.height },
+      frameRate: { ideal: profile.frameRate, max: profile.frameRate }
+    });
+  } catch (err) {
+    console.warn('A captura não aceitou o perfil de resolução/FPS solicitado:', err);
+  }
+
+  await Promise.all(Object.values(state.peers).map(async ({ pc }) => {
+    const sender = pc.getSenders().find((item) => item.track === screenTrack);
+    if (sender) await applyScreenSenderProfile(sender, profile);
+  }));
+}
+
 export async function startScreenSharing() {
   const screenShareBtn = document.getElementById('screen-share-btn');
   const profile = getProfile(state.selectedQuality);
@@ -191,14 +212,7 @@ export async function startScreenSharing() {
     const screenAudioTrack = state.screenStream.getAudioTracks()[0];
 
     if (screenVideoTrack) {
-      screenVideoTrack.contentHint = 'motion';
-      try {
-        await screenVideoTrack.applyConstraints({
-          frameRate: { ideal: profile.frameRate, max: profile.frameRate }
-        });
-      } catch (e) {
-        console.warn('applyConstraints frameRate warn:', e);
-      }
+      await applyScreenQuality(profile);
     }
 
     for (const userId in state.peers) {
@@ -208,19 +222,7 @@ export async function startScreenSharing() {
         try {
           const sender = pc.addTrack(screenVideoTrack, state.screenStream);
 
-          // Configure targeted profile bitrate
-          try {
-            const params = sender.getParameters();
-            if (!params.encodings || params.encodings.length === 0) {
-              params.encodings = [{}];
-            }
-            params.encodings[0].maxBitrate = 8000000;
-            params.encodings[0].maxFramerate = 60;
-            params.degradationPreference = 'maintain-framerate';
-            sender.setParameters(params).catch(e => console.warn(e));
-          } catch (e) {
-            console.warn('Falha ao configurar bitrate para a transmissão', e);
-          }
+          await applyScreenSenderProfile(sender, profile);
 
           // Prioritize modern multi-core GPU gaming codecs (VP9, AV1, VP8)
           try {

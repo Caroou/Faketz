@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { getProfile } from '../config.js';
-import { startScreenSharing } from '../webrtc/media.js';
+import { applyScreenQuality, startScreenSharing } from '../webrtc/media.js';
 
 let currentSources = [];
 let selectedSourceId = null;
@@ -51,27 +51,7 @@ export function initScreenPicker() {
       // If already streaming, dynamically update bitrate and framerate on all peers
       if (state.screenStream) {
         const profile = getProfile(state.selectedQuality);
-        for (const userId in state.peers) {
-          const { pc } = state.peers[userId];
-          const senders = pc.getSenders();
-          const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-          if (videoSender) {
-            try {
-              const params = videoSender.getParameters();
-              if (params.encodings && params.encodings.length > 0) {
-                params.encodings[0].maxBitrate = profile.bitrate;
-                if (profile.frameRate < 60) {
-                  params.encodings[0].maxFramerate = profile.frameRate;
-                } else {
-                  delete params.encodings[0].maxFramerate;
-                }
-                videoSender.setParameters(params).catch((e) => console.warn(e));
-              }
-            } catch (e) {
-              console.warn('Falha ao atualizar parâmetros de streaming ao vivo', e);
-            }
-          }
-        }
+        applyScreenQuality(profile);
       }
     });
   });

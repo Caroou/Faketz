@@ -9,16 +9,15 @@ export const ICE_SERVERS = {
 export const isDesktopApp = () =>
   typeof window !== 'undefined' && Boolean(window.desktopApp?.isDesktop);
 
-// Quality profiles tuned for crisp clarity and smooth motion in fast-paced games
+// Quality profiles set an upper bound; WebRTC's congestion control can lower
+// the actual bitrate when the connection or hardware cannot sustain it.
 export const QUALITY_PROFILES = {
   '720p60': {
     id: '720p60',
     width: 1280,
     height: 720,
     frameRate: 60,
-    bitrate: 6500000, // 6.5 Mbps
-    startBitrateKbps: 5000,
-    minBitrateKbps: 3500,
+    bitrate: 6500000, // 6.5 Mbps per peer
     label: '720p 60 FPS'
   },
   '1080p60': {
@@ -26,9 +25,7 @@ export const QUALITY_PROFILES = {
     width: 1920,
     height: 1080,
     frameRate: 60,
-    bitrate: 10000000, // 10.0 Mbps
-    startBitrateKbps: 7500,
-    minBitrateKbps: 5000,
+    bitrate: 12000000, // 12 Mbps per peer for high-motion 1080p60
     label: '1080p 60 FPS'
   }
 };

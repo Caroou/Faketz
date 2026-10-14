@@ -30,50 +30,9 @@ export function configureFastCodecs(videoTransceiver) {
   }
 }
 
-export function applyBitrateToSdp(sdp, profile) {
+export function applySdpCodecPreferences(sdp) {
   if (!sdp) return sdp;
   let result = sdp;
-
-  if (profile) {
-    const kbps = Math.floor(profile.bitrate / 1000);
-    const bps = profile.bitrate;
-    const minKbps = profile.minBitrateKbps || Math.floor(kbps * 0.5);
-    const startKbps = profile.startBitrateKbps || Math.floor(kbps * 0.75);
-
-    if (result.includes('b=AS:')) {
-      result = result.replace(/b=AS:\d+/g, "b=AS:" + kbps);
-    } else if (result.includes('c=IN')) {
-      result = result.replace(/(c=IN[^\r\n]*(?:\r?\n))/g, (match, line) => line + 'b=AS:' + kbps + '\r\n');
-    } else {
-      result = result.replace(/(m=video[^\r\n]*(?:\r?\n))/g, (match, line) => line + 'b=AS:' + kbps + '\r\n');
-    }
-
-    if (result.includes('b=TIAS:')) {
-      result = result.replace(/b=TIAS:\d+/g, 'b=TIAS:' + bps);
-    } else {
-      result = result.replace(/(b=AS:\d+[^\r\n]*(?:\r?\n))/g, (match, line) => line + 'b=TIAS:' + bps + '\r\n');
-    }
-
-    const googleBwe = 'x-google-min-bitrate=' + minKbps + ';x-google-start-bitrate=' + startKbps + ';x-google-max-bitrate=' + kbps;
-
-    const videoMatch = result.match(/m=video\s+\d+\s+[\w/]+\s+([\d\s]+)/);
-    const videoPayloads = videoMatch ? videoMatch[1].trim().split(/\s+/) : [];
-
-    result = result.replace(/(a=fmtp:\d+)(?!.*apt=)(.*)(\r?\n)/g, (match, prefix, rest, eol) => {
-      if (rest.includes('x-google-min-bitrate')) return match;
-      const trimmed = rest.trim();
-      const separator = (trimmed === '' || trimmed.endsWith(';')) ? '' : ';';
-      return prefix + rest + separator + googleBwe + eol;
-    });
-
-    videoPayloads.forEach((pt) => {
-      const fmtpRegex = new RegExp('a=fmtp:' + pt + '\\b');
-      const rtpmapRegex = new RegExp('(a=rtpmap:' + pt + '\\s+[^\r\n]+(?:\r?\n))');
-      if (!fmtpRegex.test(result) && rtpmapRegex.test(result)) {
-        result = result.replace(rtpmapRegex, '$1a=fmtp:' + pt + ' ' + googleBwe + '\r\n');
-      }
-    });
-  }
 
   const opusRegex = /a=rtpmap:(\d+) opus\/48000\/2/i;
   const opusMatch = result.match(opusRegex);
@@ -88,6 +47,28 @@ export function applyBitrateToSdp(sdp, profile) {
   }
 
   return result;
+}
+
+export async function applyScreenSenderProfile(sender, profile) {
+  if (!sender || !profile) return;
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+    params.encodings[0].maxBitrate = profile.bitrate;
+    params.encodings[0].maxFramerate = profile.frameRate;
+    const source = sender.track?.getSettings?.();
+    if (source?.width && source?.height) {
+      params.encodings[0].scaleResolutionDownBy = Math.max(
+        1,
+        source.width / profile.width,
+        source.height / profile.height
+      );
+    }
+    params.degradationPreference = 'balanced';
+    await sender.setParameters(params);
+  } catch (err) {
+    console.warn('Falha ao aplicar o perfil de qualidade da transmissão:', err);
+  }
 }
 
 export function createPeerConnection(userId, peerUsername, isMuted = false, peerAvatar = null) {
@@ -113,9 +94,8 @@ export function createPeerConnection(userId, peerUsername, isMuted = false, peer
       peerObj.makingOffer = true;
       let offer = await pc.createOffer();
 
-      // SDP Munging to guarantee high bitrate and instant crisp quality
-      const profile = state.screenStream ? getProfile(state.selectedQuality) : null;
-      offer.sdp = applyBitrateToSdp(offer.sdp, profile);
+      // Video bitrate and resolution are controlled through RTCRtpSender parameters.
+      offer.sdp = applySdpCodecPreferences(offer.sdp);
 
       await pc.setLocalDescription(offer);
       state.socket.emit('signal', { to: userId, signal: pc.localDescription });
@@ -177,18 +157,7 @@ export function createPeerConnection(userId, peerUsername, isMuted = false, peer
       if (track.kind === 'video') {
         try {
           const profile = getProfile(state.selectedQuality);
-          const params = sender.getParameters();
-          if (!params.encodings || params.encodings.length === 0) {
-            params.encodings = [{}];
-          }
-          params.encodings[0].maxBitrate = profile.bitrate;
-          if (profile.frameRate < 60) {
-            params.encodings[0].maxFramerate = profile.frameRate;
-          } else {
-            delete params.encodings[0].maxFramerate;
-          }
-          params.degradationPreference = 'maintain-framerate';
-          sender.setParameters(params).catch((e) => console.warn(e));
+          applyScreenSenderProfile(sender, profile);
         } catch (e) {
           console.warn('Falha ao configurar bitrate para novo participante', e);
         }
@@ -229,8 +198,7 @@ export async function handleSignal({ from, signal, username: signalUsername, ava
 
       if (signal.type === 'offer') {
         let answer = await pc.createAnswer();
-        const profile = state.screenStream ? getProfile(state.selectedQuality) : null;
-        answer.sdp = applyBitrateToSdp(answer.sdp, profile);
+        answer.sdp = applySdpCodecPreferences(answer.sdp);
         
         await pc.setLocalDescription(answer);
         state.socket.emit('signal', { to: from, signal: pc.localDescription });

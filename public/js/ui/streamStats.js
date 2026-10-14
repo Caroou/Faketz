@@ -44,7 +44,7 @@ export function initStreamStats() {
                 frames: currentFrames,
                 bytes: currentBytes
               });
-              const fps = report.framesPerSecond ? Math.round(report.framesPerSecond) : 60;
+              const fps = report.framesPerSecond ? Math.round(report.framesPerSecond) : 0;
               const width = report.frameWidth || (state.screenStream?.getVideoTracks()[0]?.getSettings().width) || 0;
               const height = report.frameHeight || (state.screenStream?.getVideoTracks()[0]?.getSettings().height) || 0;
               updateStatsBadge('local-screen', fps, '0.0', width, height, codec);
