@@ -1,7 +1,12 @@
 import { state } from '../state.js';
 
 let statsInterval = null;
-const prevStats = new Map(); // key -> { timestamp, frames, bytes }
+const prevStats = new Map(); // key -> { timestamp, frames, bytes, dropped }
+
+function getCodecName(stats, codecId) {
+  const codecReport = codecId ? stats.get(codecId) : null;
+  return codecReport?.mimeType?.split('/')[1]?.toUpperCase() || '—';
+}
 
 export function initStreamStats() {
   if (statsInterval) return;
@@ -21,18 +26,11 @@ export function initStreamStats() {
 
       try {
         const stats = await peer.pc.getStats();
-        let codec = 'H264';
-
-        // Detect active video codec
-        stats.forEach((report) => {
-          if (report.type === 'codec' && report.mimeType && report.mimeType.startsWith('video/')) {
-            codec = report.mimeType.split('/')[1].toUpperCase();
-          }
-        });
 
         stats.forEach((report) => {
           // Outbound stats (streamer side)
           if (report.type === 'outbound-rtp' && report.kind === 'video' && !report.isRemote && (report.framesSent > 0 || report.frameWidth > 0 || report.framesEncoded > 0)) {
+            const codec = getCodecName(stats, report.codecId);
             const key = `out-${userId}`;
             const currentFrames = report.framesSent || 0;
             const currentBytes = report.bytesSent || 0;
@@ -78,16 +76,19 @@ export function initStreamStats() {
 
           // Inbound stats (viewer side)
           if (report.type === 'inbound-rtp' && report.kind === 'video' && !report.isRemote && (report.framesDecoded > 0 || report.frameWidth > 0 || report.framesReceived > 0)) {
+            const codec = getCodecName(stats, report.codecId);
             const key = `in-${userId}`;
-            const currentFrames = report.framesDecoded || report.framesReceived || 0;
+            const currentFrames = report.framesDecoded ?? report.framesReceived ?? 0;
             const currentBytes = report.bytesReceived || 0;
+            const currentDropped = report.framesDropped || 0;
             const prev = prevStats.get(key);
 
             if (!prev) {
               prevStats.set(key, {
                 timestamp: report.timestamp,
                 frames: currentFrames,
-                bytes: currentBytes
+                bytes: currentBytes,
+                dropped: currentDropped
               });
               const fps = report.framesPerSecond ? Math.round(report.framesPerSecond) : 0;
               updateStatsBadge(`${userId}-screen`, fps, '0.0', report.frameWidth || 0, report.frameHeight || 0, codec);
@@ -98,22 +99,22 @@ export function initStreamStats() {
             if (dt >= 0.7) {
               const dFrames = currentFrames - prev.frames;
               const dBytes = currentBytes - prev.bytes;
+              const dropped = Math.max(0, currentDropped - (prev.dropped || 0));
               const calculatedFps = Math.max(0, Math.round(dFrames / dt));
               const fps = calculatedFps > 0 ? calculatedFps : (report.framesPerSecond ? Math.round(report.framesPerSecond) : 0);
               const bitrateMbps = Math.max(0, (dBytes * 8) / (dt * 1000000)).toFixed(1);
               const width = report.frameWidth || 0;
               const height = report.frameHeight || 0;
-              const dropped = report.framesDropped || 0;
-
               console.log(`[Screen Stats In] FPS:${fps} (calc:${calculatedFps}, rtc:${report.framesPerSecond}) ${width}x${height} ${bitrateMbps}Mb/s ${codec} Dropped:${dropped}`);
 
               prevStats.set(key, {
                 timestamp: report.timestamp,
                 frames: currentFrames,
-                bytes: currentBytes
+                bytes: currentBytes,
+                dropped: currentDropped
               });
 
-              updateStatsBadge(`${userId}-screen`, fps, bitrateMbps, width, height, codec, dropped > 0 ? `drop:${dropped}` : '', '');
+              updateStatsBadge(`${userId}-screen`, fps, bitrateMbps, width, height, codec, 'none', '', dropped);
             }
           }
         });
@@ -124,7 +125,7 @@ export function initStreamStats() {
   }, 1000);
 }
 
-function updateStatsBadge(mediaId, fps, bitrateMbps, width, height, codec, limitation = '', capStr = '') {
+function updateStatsBadge(mediaId, fps, bitrateMbps, width, height, codec, limitation = '', capStr = '', dropped = null) {
   const container = document.getElementById(`media-${mediaId}`);
   if (!container) return;
 
@@ -149,5 +150,6 @@ function updateStatsBadge(mediaId, fps, bitrateMbps, width, height, codec, limit
     <span class="text-zinc-400 uppercase font-semibold text-[10px]">${codec}</span>
     ${capStr ? `<span class="text-zinc-500">|</span> <span class="text-cyan-400 text-[10px]">Cap:${capStr}</span>` : ''}
     ${limitation && limitation !== 'none' ? `<span class="text-zinc-500">|</span> <span class="text-rose-400 text-[10px]">Lim:${limitation}</span>` : ''}
+    ${dropped !== null ? `<span class="text-zinc-500">|</span> <span class="${dropped > 0 ? 'text-rose-400' : 'text-emerald-400'} text-[10px]">Drop:${dropped}</span>` : ''}
   `;
 }
